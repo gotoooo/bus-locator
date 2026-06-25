@@ -12,10 +12,10 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="芸陽バス">
-  <link rel="apple-touch-icon" href="/app/icons/apple-touch-icon-180.png">
-  <link rel="icon" type="image/png" sizes="192x192" href="/app/icons/icon-192.png">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon-180.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
 
-  <link rel="stylesheet" href="/app/styles.css">
+  <link rel="stylesheet" href="/styles.css">
   <!-- 地図: MapLibre GL（CDN）。読み込めない環境では地図なしで動作 -->
   <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
   <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
@@ -63,7 +63,9 @@
     </div>
   </div>
 
-  <script src="/app/app.js"></script>
+  <!-- バックエンドAPIの接続先設定（Vercel配信時はここを別ホストのURLにする） -->
+  <script src="/config.js"></script>
+  <script src="/app.js"></script>
   <script>
     // Service Worker 登録（PWA。HTTPS か localhost で有効）
     if ("serviceWorker" in navigator) {

@@ -11,11 +11,12 @@ const SHELL_CACHE = `shell-${VERSION}`;
 
 const SHELL = [
   "/",
-  "/app/app.js",
-  "/app/styles.css",
+  "/app.js",
+  "/config.js",
+  "/styles.css",
   "/manifest.webmanifest",
-  "/app/icons/icon-192.png",
-  "/app/icons/icon-512.png",
+  "/icons/icon-192.png",
+  "/icons/icon-512.png",
 ];
 
 // APIパス（リアルタイム/動的データ。キャッシュ禁止）
@@ -41,12 +42,11 @@ self.addEventListener("activate", (event) => {
 function isApi(url) {
   return API_PREFIXES.some((p) => url.pathname === p || url.pathname.startsWith(p + "/"));
 }
+const SHELL_PATHS = new Set([
+  "/", "/index.html", "/app.js", "/config.js", "/styles.css", "/manifest.webmanifest",
+]);
 function isShellAsset(url) {
-  return (
-    url.pathname === "/" ||
-    url.pathname === "/manifest.webmanifest" ||
-    url.pathname.startsWith("/app/")
-  );
+  return SHELL_PATHS.has(url.pathname) || url.pathname.startsWith("/icons/");
 }
 
 self.addEventListener("fetch", (event) => {

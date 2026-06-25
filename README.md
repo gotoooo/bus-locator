@@ -81,6 +81,49 @@ python -m pytest        # ネットワーク不要（合成GTFSで検証）
 
 ---
 
+## 本番デプロイ（PWA=Vercel / API=常時起動ホスト）
+
+このアプリは **RT集約ポーラが常駐するバックエンド** と **静的PWAフロント** から成る。
+Vercelはサーバレス（常駐プロセス不可）なので、**フロントだけVercel・APIは常時起動ホスト**に分離する。
+（フィードはブラウザから直接叩けない＝高頻度アクセス禁止/CORS無しのため、フロント単体では成立しない）
+
+```
+[PWA: Vercel(静的/HTTPS)]  ──CORS──▶  [API: Fly.io等(FastAPI+15秒ポーラ)]  ──▶  芸陽バスフィード
+```
+
+### 1) バックエンドを常時起動ホストへ（Fly.io 例）
+```bash
+cd backend
+fly launch --no-deploy
+fly volume create geiyo_data --size 1     # お気に入りSQLiteの永続化
+fly deploy                                # fly.toml / Dockerfile を使用
+# → https://<your-app>.fly.dev が公開URL。/health で疎通確認
+```
+- Render / Railway でも同じ `Dockerfile` で動く（`$PORT` 対応済み）。`min instances=1`・auto-stop無効にして**ポーラを止めない**こと。
+- お気に入りを残すなら永続ボリュームを `/data`（`DB_PATH`）にマウント。
+- このホストから `ajt-mobusta-gtfs.mcapps.jp` へのアウトバウンドが通る必要あり。
+
+### 2) フロント(PWA)の接続先を設定
+`web/config.js` の1行をバックエンドURLに:
+```js
+window.__API_BASE__ = "https://<your-app>.fly.dev";
+```
+
+### 3) PWAをVercelへ
+リポジトリをVercelに連携し、**Root Directory を `web/`** に設定（または同梱の `vercel.json` で `outputDirectory: web` を使用）。ビルド不要の静的サイトとして配信される。
+- `vercel.json` が `sw.js` の no-cache と `Service-Worker-Allowed: /`、`manifest` のContent-Typeを付与する。
+- VercelはHTTPS標準なので、PWA（Service Worker）がそのまま有効になる。
+
+> CORSはバックエンドで全許可済み。絞りたい場合は `main.py` の `allow_origins` をVercelのドメインに変更する。
+
+### ローカルでの一体起動
+開発時は分離せず、FastAPIがフロントも同一オリジンで配る（`web/config.js` は空のままでOK）:
+```bash
+cd backend && uvicorn app.main:app --port 8000   # http://localhost:8000/
+```
+
+---
+
 ## API（自前）
 
 | メソッド | パス | 説明 |

@@ -192,15 +192,13 @@ def alerts(agencyId: int = DEFAULT_AGENCY_ID,
     return st.alerts_for(route_id=routeId, stop_id=stopId)
 
 
-# ── 静的Webクライアント配信（PWA）─────────────────────────
+# ── 静的Webクライアント配信（PWA / ローカル開発用）─────────
+# 本番ではPWAをVercelに、APIをこのバックエンドに分離する想定だが、
+# ローカル開発では同一オリジンでフロントも配れるよう、Vercelと同じ
+# ルートパス（/app.js, /styles.css, /icons/*, /sw.js, /manifest.webmanifest）で配信する。
 _WEB_DIR = pathlib.Path(__file__).resolve().parents[2] / "web"
 if _WEB_DIR.is_dir():
-    @app.get("/")
-    def index() -> FileResponse:
-        return FileResponse(_WEB_DIR / "index.html")
-
     # Service Worker はルート配信が必須（スコープを "/" にするため）。
-    # キャッシュ回避ヘッダ + Service-Worker-Allowed を付ける。
     @app.get("/sw.js")
     def service_worker() -> FileResponse:
         return FileResponse(
@@ -216,5 +214,6 @@ if _WEB_DIR.is_dir():
             media_type="application/manifest+json",
         )
 
-    # アプリ資産（app.js / styles.css / icons/*）
-    app.mount("/app", StaticFiles(directory=str(_WEB_DIR), html=True), name="web")
+    # 残り（/, /app.js, /styles.css, /config.js, /icons/*）を web/ から配信。
+    # APIルートは上で登録済みのため、このマウントより優先される。
+    app.mount("/", StaticFiles(directory=str(_WEB_DIR), html=True), name="web")

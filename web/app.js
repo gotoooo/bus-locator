@@ -2,7 +2,9 @@
 // バックエンドAPIだけを叩く（フィード直叩き禁止の制約を満たす）。
 
 const AGENCY_ID = 11;
-const API = ""; // 同一オリジン配信を想定。別ホストなら "http://localhost:8000" 等に。
+// API接続先: config.js の window.__API_BASE__ → localStorage.apiBase → 同一オリジン。
+const API = (window.__API_BASE__ || localStorage.getItem("apiBase") || "")
+  .replace(/\/$/, "");
 
 const $ = (s) => document.querySelector(s);
 const el = (tag, cls, html) => {
