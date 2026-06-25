@@ -20,20 +20,23 @@ backend/
     gtfs_realtime.py    GTFS-RT（Vehicle/TripUpdate/Alert）パース
     eta.py              コアロジック: 直近便・あと何駅・あと何分（3段フォールバック）
     poller.py           静的1日1回 + RT 15秒ポーリング・キャッシュ（集約型）
-    store.py            お気に入り永続化（SQLite）
-    main.py             FastAPI（自前API + Webクライアント配信）
+    main.py             FastAPI（自前API + ローカル開発用Webクライアント配信）
   tools/
     make_demo_fixture.py  オフライン用デモGTFS生成
     snapshot_feeds.py     ライブフィードのローカル保存
+    make_pwa_icons.py     PWAアイコン生成
   tests/                pytest（ETA / 静的 / API、ネットワーク不要）
 web/                    Webクライアント（PWA。検索→登録→ダッシュボード→地図詳細）
+  app.js                お気に入りは端末localStorageに保持
+  config.js             バックエンドAPIの接続先設定
   manifest.webmanifest  PWAマニフェスト
   sw.js                 Service Worker（シェルはオフライン可・API応答は非キャッシュ）
   icons/                ホーム画面アイコン（make_pwa_icons.py で再生成）
 ```
 
 ### アーキテクチャ方針
-- **バックエンド集約型**: RTは15秒更新・高頻度アクセス禁止のため、バックエンドで1回取得し全クライアントに配る（クライアントからフィードを直叩きしない）。
+- **バックエンド集約型**: RTは15秒更新・高頻度アクセス禁止のため、バックエンドで1回取得しキャッシュして配る（クライアントからフィードを直叩きしない）。
+- **ステートレス**: お気に入りはクライアント（PWA）が端末の `localStorage` に保持し、停留所ごとに `/arrivals` を呼ぶ。バックエンドはDBを持たないため、揮発ディスクの無料ホストでも動く。
 - **アダプタ層**: フィード取得元を `providers.py` に集約。内部モデルはGTFS標準なのでパーサは共通。新事業者は `Provider` を1つ足すだけ。
 - **フォールバック**: RT欠損時は静的の定刻案内へ自動フォールバック（`rtAvailable=false` / `source="schedule"`）。
 
@@ -81,38 +84,40 @@ python -m pytest        # ネットワーク不要（合成GTFSで検証）
 
 ---
 
-## 本番デプロイ（PWA=Vercel / API=常時起動ホスト）
+## 本番デプロイ（無料: PWA=Vercel / API=Render 無料枠）
 
-このアプリは **RT集約ポーラが常駐するバックエンド** と **静的PWAフロント** から成る。
-Vercelはサーバレス（常駐プロセス不可）なので、**フロントだけVercel・APIは常時起動ホスト**に分離する。
+**フロント(PWA)はVercel、API(FastAPI+15秒ポーラ)はRender無料枠**に分離する。
+お気に入りは端末localStorageに持つのでバックエンドはステートレス＝無料枠の揮発ディスクでも問題ない。
 （フィードはブラウザから直接叩けない＝高頻度アクセス禁止/CORS無しのため、フロント単体では成立しない）
 
 ```
-[PWA: Vercel(静的/HTTPS)]  ──CORS──▶  [API: Fly.io等(FastAPI+15秒ポーラ)]  ──▶  芸陽バスフィード
+[PWA: Vercel(静的/HTTPS)]  ──CORS──▶  [API: Render無料枠(FastAPI+15秒ポーラ)]  ──▶  芸陽バスフィード
 ```
 
-### 1) バックエンドを常時起動ホストへ（Fly.io 例）
-```bash
-cd backend
-fly launch --no-deploy
-fly volume create geiyo_data --size 1     # お気に入りSQLiteの永続化
-fly deploy                                # fly.toml / Dockerfile を使用
-# → https://<your-app>.fly.dev が公開URL。/health で疎通確認
+> **Render無料枠の挙動**: 15分アクセスが無いとスリープし、次回アクセスでコールドスタート（数十秒）。
+> 個人利用なら実用上問題なし（見ていない間に止まるだけ）。常時起動が必要なら Oracle Always Free VM 等に置き換え可。
+
+### 1) バックエンドを Render へ
+リポジトリをRenderに連携 → **New → Blueprint** → このリポジトリを選ぶと、同梱の `render.yaml` から
+Dockerイメージ（`backend/Dockerfile`）でサービスが作られる。
 ```
-- Render / Railway でも同じ `Dockerfile` で動く（`$PORT` 対応済み）。`min instances=1`・auto-stop無効にして**ポーラを止めない**こと。
-- お気に入りを残すなら永続ボリュームを `/data`（`DB_PATH`）にマウント。
+→ https://<your-app>.onrender.com が公開URL
+```
+- 作成後 `https://<your-app>.onrender.com/health` を開き、`"rtOk": true`（フィード疎通）を確認。
 - このホストから `ajt-mobusta-gtfs.mcapps.jp` へのアウトバウンドが通る必要あり。
+- Railway / Fly.io でも同じ `Dockerfile` で動く（`$PORT` 対応済み）。
 
 ### 2) フロント(PWA)の接続先を設定
 `web/config.js` の1行をバックエンドURLに:
 ```js
-window.__API_BASE__ = "https://<your-app>.fly.dev";
+window.__API_BASE__ = "https://<your-app>.onrender.com";
 ```
 
 ### 3) PWAをVercelへ
-リポジトリをVercelに連携し、**Root Directory を `web/`** に設定（または同梱の `vercel.json` で `outputDirectory: web` を使用）。ビルド不要の静的サイトとして配信される。
+リポジトリをVercelに連携し、同梱の `vercel.json`（`outputDirectory: web`）でビルド不要の静的サイトとして配信。
 - `vercel.json` が `sw.js` の no-cache と `Service-Worker-Allowed: /`、`manifest` のContent-Typeを付与する。
 - VercelはHTTPS標準なので、PWA（Service Worker）がそのまま有効になる。
+- スマホでアクセス →「ホーム画面に追加」でアプリ化。
 
 > CORSはバックエンドで全許可済み。絞りたい場合は `main.py` の `allow_origins` をVercelのドメインに変更する。
 
@@ -132,12 +137,11 @@ cd backend && uvicorn app.main:app --port 8000   # http://localhost:8000/
 | GET | `/agencies` | 事業者一覧 |
 | GET | `/stops?agencyId=&q=` | バス停名の部分一致検索 |
 | GET | `/stops/{stopId}/routes?agencyId=` | その停留所の路線・方面 |
-| POST | `/favorites` | お気に入り登録 `{stopId, agencyId?, routeId?, directionId?}` |
-| GET | `/favorites` | 登録一覧 |
-| DELETE | `/favorites/{id}` | 登録削除 |
 | GET | `/arrivals?agencyId=&stopId=&routeId=&directionId=` | 直近便（eta昇順） |
-| GET | `/dashboard` | 登録停留所すべての直近便 |
 | GET | `/alerts?agencyId=&routeId=&stopId=` | 運休・迂回Alert |
+
+> お気に入り・ダッシュボードはクライアント側（端末localStorage）で完結するため、サーバAPIは持たない。
+> クライアントは登録した停留所ごとに `/arrivals` を呼ぶ。
 
 ### `/arrivals` 応答例
 ```jsonc
@@ -219,7 +223,6 @@ cd backend && uvicorn app.main:app --port 8000   # http://localhost:8000/
 | `STATIC_REFRESH_INTERVAL_SEC` | 86400 | 静的再取得間隔 |
 | `ARRIVALS_HORIZON_MIN` | 90 | 直近便の探索ホライズン（分） |
 | `IMMINENT_THRESHOLD_MIN` | 1.0 | 「まもなく到着」閾値（分） |
-| `DB_PATH` | favorites.db | お気に入りSQLite |
 | `ENABLE_POLLER` | 1 | 起動時のRTポーリング有無 |
 | `STATIC_FIXTURE` / `RT_*_FIXTURE` | — | ローカルファイルから読む（オフライン開発） |
 

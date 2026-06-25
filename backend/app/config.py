@@ -28,8 +28,6 @@ class Settings:
     passed_grace_sec: int = _int("PASSED_GRACE_SEC", 60)
     # User-Agent
     user_agent: str = os.environ.get("USER_AGENT", "geiyo-bus-watcher/1.0")
-    # お気に入り保存先 SQLite
-    db_path: str = os.environ.get("DB_PATH", "favorites.db")
     # RT取得に失敗した状態が「古い」とみなされるまでの秒数（フォールバック判定）
     rt_stale_after_sec: int = _int("RT_STALE_AFTER_SEC", 90)
     # 開発用: ライブ取得の代わりにローカルファイルを使う（ネットワーク制限環境向け）

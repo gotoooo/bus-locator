@@ -20,6 +20,31 @@ async function api(path, opts) {
   return r.json();
 }
 
+// ── お気に入り（端末ローカル保存。サーバDB不要＝どの無料ホストでも消えない）──
+const FAV_KEY = "favorites";
+function loadFavs() {
+  try { return JSON.parse(localStorage.getItem(FAV_KEY) || "[]"); }
+  catch { return []; }
+}
+function saveFavs(list) { localStorage.setItem(FAV_KEY, JSON.stringify(list)); }
+function favKey(f) {
+  return [f.agencyId, f.stopId, f.routeId || "", f.directionId || ""].join("|");
+}
+function addFav(f) {
+  const list = loadFavs();
+  if (list.some((x) => favKey(x) === favKey(f))) return false;
+  list.push(f); saveFavs(list); return true;
+}
+function removeFav(key) {
+  saveFavs(loadFavs().filter((x) => favKey(x) !== key));
+}
+function arrivalsUrl(f) {
+  const p = new URLSearchParams({ agencyId: f.agencyId, stopId: f.stopId });
+  if (f.routeId) p.set("routeId", f.routeId);
+  if (f.directionId) p.set("directionId", f.directionId);
+  return "/arrivals?" + p.toString();
+}
+
 // ── タブ切替 ──────────────────────────────────────────────
 document.querySelectorAll(".tabs button").forEach((b) => {
   b.onclick = () => {
@@ -63,44 +88,44 @@ function renderArrival(a) {
 }
 
 // ── ダッシュボード ────────────────────────────────────────
+// 端末に保存した停留所ごとに /arrivals を呼ぶ（サーバは状態を持たない）。
 async function loadDashboard() {
-  $("#status").textContent = "更新中…";
-  let cards;
-  try {
-    cards = await api("/dashboard");
-  } catch (e) {
-    $("#status").textContent = "取得失敗: " + e.message;
-    return;
-  }
+  const favs = loadFavs();
   const root = $("#cards");
   root.innerHTML = "";
-  $("#empty-hint").style.display = cards.length ? "none" : "block";
+  $("#empty-hint").style.display = favs.length ? "none" : "block";
+  if (!favs.length) { $("#status").textContent = ""; return; }
 
-  for (const c of cards) {
+  $("#status").textContent = "更新中…";
+  const results = await Promise.allSettled(favs.map((f) => api(arrivalsUrl(f))));
+
+  results.forEach((res, i) => {
+    const f = favs[i];
     const card = el("div", "card");
     const title = el("h3");
-    title.append(el("span", null, c.stopName || c.stopId));
+    const name = f.routeLabel ? `${f.stopName}（${f.routeLabel}）` : (f.stopName || f.stopId);
+    title.append(el("span", null, name));
     const del = el("button", "delete", "🗑");
-    del.onclick = async (ev) => {
-      ev.stopPropagation();
-      await api(`/favorites/${c.favoriteId}`, { method: "DELETE" });
-      loadDashboard();
-    };
+    del.onclick = (ev) => { ev.stopPropagation(); removeFav(favKey(f)); loadDashboard(); };
     title.append(del);
     card.append(title);
 
-    for (const al of c.alerts || []) {
-      card.append(el("div", "alert", "⚠ " + (al.header || al.description || "運行情報あり")));
-    }
-
-    if (c.arrivals.length === 0) {
-      card.append(el("div", "servicestatus", SERVICE_LABEL[c.serviceStatus] || "直近の便はありません"));
+    if (res.status === "rejected") {
+      card.append(el("div", "servicestatus", "取得失敗: " + (res.reason?.message || res.reason)));
     } else {
-      c.arrivals.slice(0, 3).forEach((a) => card.append(renderArrival(a)));
+      const c = res.value;
+      for (const al of c.alerts || []) {
+        card.append(el("div", "alert", "⚠ " + (al.header || al.description || "運行情報あり")));
+      }
+      if (c.arrivals.length === 0) {
+        card.append(el("div", "servicestatus", SERVICE_LABEL[c.serviceStatus] || "直近の便はありません"));
+      } else {
+        c.arrivals.slice(0, 3).forEach((a) => card.append(renderArrival(a)));
+      }
+      card.onclick = () => openDetail(c);
     }
-    card.onclick = () => openDetail(c);
     root.append(card);
-  }
+  });
   $("#status").textContent = "最終更新 " + new Date().toLocaleTimeString("ja-JP");
 }
 
@@ -128,28 +153,26 @@ async function doSearch() {
     box.append(el("div", "name", s.name));
     const routes = await api(`/stops/${encodeURIComponent(s.stopId)}/routes?agencyId=${AGENCY_ID}`);
     // 「全便」登録
-    addRouteOption(box, s.stopId, { route: "すべての路線・方面", routeId: null, directionId: null });
-    routes.forEach((r) => addRouteOption(box, s.stopId, r));
+    addRouteOption(box, s, { route: "すべての路線・方面", routeId: null, directionId: null });
+    routes.forEach((r) => addRouteOption(box, s, r));
     root.append(box);
   }
 }
-function addRouteOption(box, stopId, r) {
+function addRouteOption(box, stop, r) {
   const opt = el("div", "route-opt");
-  const label = r.routeId
-    ? `[${r.route}] ${r.headsign || ""}方面`
-    : r.route;
+  const label = r.routeId ? `[${r.route}] ${r.headsign || ""}方面` : r.route;
   opt.append(el("span", null, label));
   const btn = el("button", null, "＋登録");
-  btn.onclick = async () => {
-    await api("/favorites", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        stopId, agencyId: AGENCY_ID,
-        routeId: r.routeId, directionId: r.directionId,
-      }),
+  btn.onclick = () => {
+    const added = addFav({
+      agencyId: AGENCY_ID,
+      stopId: stop.stopId,
+      stopName: stop.name,
+      routeId: r.routeId || null,
+      directionId: r.directionId ?? null,
+      routeLabel: r.routeId ? `${r.route} ${r.headsign || ""}方面` : null,
     });
-    btn.textContent = "登録済み ✓";
+    btn.textContent = added ? "登録済み ✓" : "登録済み";
     btn.disabled = true;
   };
   opt.append(btn);

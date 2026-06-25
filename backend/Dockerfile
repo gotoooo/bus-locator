@@ -14,10 +14,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app ./app
 
-# お気に入りSQLiteの保存先（永続化するならボリュームをここにマウント）
-ENV DB_PATH=/data/favorites.db
-RUN mkdir -p /data
-
+# このバックエンドは状態を持たない（お気に入りはクライアント側localStorage）。
 # RTは15秒更新。ポーラは内部で15秒間隔を厳守する。
 ENV ENABLE_POLLER=1
 

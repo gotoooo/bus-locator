@@ -1,0 +1,21 @@
+# Render Blueprint（無料枠）。
+# GitHubリポジトリをRenderに連携し、この Blueprint から1クリックで作成できる。
+#   Render Dashboard → New → Blueprint → このリポジトリを選択
+#
+# 無料枠の注意:
+#   - 15分アクセスが無いとスリープ → 次回アクセス時にコールドスタート（数十秒）。
+#     個人利用なら実用上問題なし（見ていない間に止まるだけ）。
+#   - ディスクは揮発するが、お気に入りはクライアント側(localStorage)が持つので影響なし。
+services:
+  - type: web
+    name: geiyo-bus-api
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    region: singapore        # Render無料枠で日本に最も近い
+    plan: free
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: ENABLE_POLLER
+        value: "1"
