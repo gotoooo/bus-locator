@@ -8,4 +8,4 @@
 //
 // ※ デプロイ前にこの1行を書き換えてください。
 //   （未設定でも、ブラウザのコンソールで localStorage.setItem("apiBase", "https://...") でも上書き可）
-window.__API_BASE__ = "";
+window.__API_BASE__ = "https://geiyo-bus-api.onrender.com";
