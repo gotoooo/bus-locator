@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+
+# データ・スナップショット
+*.db
+snapshots/
+*.zip
+*.bin
+demo_static.zip
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/

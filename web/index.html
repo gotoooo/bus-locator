@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>芸陽バス 接近情報</title>
+  <link rel="stylesheet" href="/app/styles.css">
+  <!-- 地図: MapLibre GL（CDN）。読み込めない環境では地図なしで動作 -->
+  <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+</head>
+<body>
+  <header>
+    <h1>🚌 芸陽バス 接近情報</h1>
+    <p class="sub">登録したバス停の「今どこ・あと何駅・あと何分」</p>
+  </header>
+
+  <nav class="tabs">
+    <button data-tab="dashboard" class="active">ダッシュボード</button>
+    <button data-tab="search">バス停を追加</button>
+  </nav>
+
+  <!-- ダッシュボード -->
+  <section id="dashboard" class="tab active">
+    <div class="toolbar">
+      <button id="refresh">↻ 更新</button>
+      <label><input type="checkbox" id="autorefresh" checked> 自動更新(15秒)</label>
+      <span id="status" class="muted"></span>
+    </div>
+    <div id="cards" class="cards"></div>
+    <p id="empty-hint" class="muted">
+      まだ登録がありません。「バス停を追加」から登録してください。
+    </p>
+  </section>
+
+  <!-- 検索・登録 -->
+  <section id="search" class="tab">
+    <div class="searchbar">
+      <input id="q" type="text" placeholder="バス停名で検索（例: 西条駅）" autocomplete="off">
+      <button id="do-search">検索</button>
+    </div>
+    <div id="search-results" class="list"></div>
+  </section>
+
+  <!-- 詳細モーダル（地図つき） -->
+  <div id="detail" class="modal hidden">
+    <div class="modal-body">
+      <button class="close" id="detail-close">×</button>
+      <h2 id="detail-title"></h2>
+      <div id="map"></div>
+      <div id="detail-arrivals" class="list"></div>
+    </div>
+  </div>
+
+  <script src="/app/app.js"></script>
+</body>
+</html>
