@@ -183,6 +183,21 @@ $("#q").addEventListener("keydown", (e) => { if (e.key === "Enter") doSearch(); 
 
 // ── 詳細（地図つき）──────────────────────────────────────
 let map = null, markers = [];
+
+// 実際の道路が見えるOSMラスタタイル（APIキー不要）。個人利用の低頻度想定。
+const OSM_STYLE = {
+  version: 8,
+  sources: {
+    osm: {
+      type: "raster",
+      tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+      tileSize: 256,
+      attribution: "© OpenStreetMap contributors",
+    },
+  },
+  layers: [{ id: "osm", type: "raster", source: "osm" }],
+};
+
 function openDetail(card) {
   $("#detail-title").textContent = card.stopName || card.stopId;
   $("#detail").classList.remove("hidden");
@@ -202,26 +217,36 @@ function drawMap(card) {
     return;
   }
   const withPos = card.arrivals.filter((a) => a.vehicle);
-  const center = withPos[0]?.vehicle
-    ? [withPos[0].vehicle.lon, withPos[0].vehicle.lat]
-    : [132.74, 34.42]; // 西条あたり
+  // 中心: 車両があればその位置、無ければバス停の位置、どちらも無ければ西条
+  const center =
+    (withPos[0]?.vehicle && [withPos[0].vehicle.lon, withPos[0].vehicle.lat]) ||
+    (card.stopLat != null && [card.stopLon, card.stopLat]) ||
+    [132.74, 34.42];
 
   if (!map) {
-    map = new maplibregl.Map({
-      container: "map",
-      style: "https://demotiles.maplibre.org/style.json",
-      center, zoom: 12,
-    });
+    map = new maplibregl.Map({ container: "map", style: OSM_STYLE, center, zoom: 15 });
+    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
   } else {
-    map.setCenter(center);
+    map.setStyle(OSM_STYLE);
+    map.jumpTo({ center, zoom: 15 });
   }
   markers.forEach((m) => m.remove());
   markers = [];
-  map.once("idle", () => {});
+
+  // バス停マーカー（青）
+  if (card.stopLat != null && card.stopLon != null) {
+    const stopMarker = new maplibregl.Marker({ color: "#3366cc" })
+      .setLngLat([card.stopLon, card.stopLat])
+      .setPopup(new maplibregl.Popup().setText("🚏 " + (card.stopName || "バス停")))
+      .addTo(map);
+    markers.push(stopMarker);
+  }
+
+  // 走行中車両マーカー（緑）
   withPos.forEach((a) => {
     const m = new maplibregl.Marker({ color: "#2aa84a" })
       .setLngLat([a.vehicle.lon, a.vehicle.lat])
-      .setPopup(new maplibregl.Popup().setText(`${a.route} ${a.headsign}方面 ${etaText(a)}`))
+      .setPopup(new maplibregl.Popup().setText(`🚌 ${a.route} ${a.headsign}方面 ${etaText(a)}`))
       .addTo(map);
     markers.push(m);
   });

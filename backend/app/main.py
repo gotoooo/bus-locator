@@ -114,6 +114,9 @@ def _arrivals(agency_id: int, stop_id: str,
     )
     out = result.to_dict()
     out["agencyId"] = agency_id
+    stop = st.static.stops.get(stop_id)
+    out["stopLat"] = stop["lat"] if stop else None
+    out["stopLon"] = stop["lon"] if stop else None
     out["alerts"] = st.alerts_for(route_id=route_id, stop_id=stop_id)
     return out
 
