@@ -2,8 +2,19 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>芸陽バス 接近情報</title>
+
+  <!-- PWA -->
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#16324f">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="芸陽バス">
+  <link rel="apple-touch-icon" href="/app/icons/apple-touch-icon-180.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="/app/icons/icon-192.png">
+
   <link rel="stylesheet" href="/app/styles.css">
   <!-- 地図: MapLibre GL（CDN）。読み込めない環境では地図なしで動作 -->
   <link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
@@ -53,5 +64,14 @@
   </div>
 
   <script src="/app/app.js"></script>
+  <script>
+    // Service Worker 登録（PWA。HTTPS か localhost で有効）
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("/sw.js").catch((e) =>
+          console.warn("SW登録失敗:", e));
+      });
+    }
+  </script>
 </body>
 </html>

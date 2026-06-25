@@ -26,7 +26,10 @@ backend/
     make_demo_fixture.py  オフライン用デモGTFS生成
     snapshot_feeds.py     ライブフィードのローカル保存
   tests/                pytest（ETA / 静的 / API、ネットワーク不要）
-web/                    Webクライアント（検索→登録→ダッシュボード→地図詳細）
+web/                    Webクライアント（PWA。検索→登録→ダッシュボード→地図詳細）
+  manifest.webmanifest  PWAマニフェスト
+  sw.js                 Service Worker（シェルはオフライン可・API応答は非キャッシュ）
+  icons/                ホーム画面アイコン（make_pwa_icons.py で再生成）
 ```
 
 ### アーキテクチャ方針
@@ -178,6 +181,22 @@ python -m pytest        # ネットワーク不要（合成GTFSで検証）
 | `STATIC_FIXTURE` / `RT_*_FIXTURE` | — | ローカルファイルから読む（オフライン開発） |
 
 ---
+
+## PWA（個人利用向け）
+
+Webクライアントはインストール可能な **PWA** です。スマホのブラウザで開き「ホーム画面に追加」すると、
+全画面のアプリとして起動でき、専用アイコンが付きます。
+
+- **オフライン**: アプリの外枠（HTML/CSS/JS/アイコン）はキャッシュされ、圏外でも画面は開きます。
+  ただしバスの到着情報はリアルタイムのため、表示にはネットワークが必要です
+  （古い予測を見せないよう、API応答は意図的にキャッシュしていません）。
+- **配信スコープ**: Service Worker は `/sw.js`（ルート配信、スコープ `/`）。`manifest.webmanifest` も
+  ルートで配信。アイコンは `/app/icons/`。
+- **HTTPS必須**: Service Worker は `https://` か `localhost` でのみ有効です。
+  スマホから使うときは、後述のいずれかで **HTTPS** で公開してください
+  （Fly.io / Render などは標準でHTTPSが付きます。VPSなら Caddy か nginx + Let's Encrypt）。
+
+アイコンを差し替えたいときは `backend/tools/make_pwa_icons.py` を編集して再生成します。
 
 ## 今後の課題
 - 接近プッシュ通知（あと◯分／◯駅）、ホーム画面ウィジェット

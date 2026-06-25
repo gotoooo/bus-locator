@@ -192,11 +192,29 @@ def alerts(agencyId: int = DEFAULT_AGENCY_ID,
     return st.alerts_for(route_id=routeId, stop_id=stopId)
 
 
-# ── 静的Webクライアント配信 ───────────────────────────────
+# ── 静的Webクライアント配信（PWA）─────────────────────────
 _WEB_DIR = pathlib.Path(__file__).resolve().parents[2] / "web"
 if _WEB_DIR.is_dir():
     @app.get("/")
     def index() -> FileResponse:
         return FileResponse(_WEB_DIR / "index.html")
 
+    # Service Worker はルート配信が必須（スコープを "/" にするため）。
+    # キャッシュ回避ヘッダ + Service-Worker-Allowed を付ける。
+    @app.get("/sw.js")
+    def service_worker() -> FileResponse:
+        return FileResponse(
+            _WEB_DIR / "sw.js",
+            media_type="application/javascript",
+            headers={"Cache-Control": "no-cache", "Service-Worker-Allowed": "/"},
+        )
+
+    @app.get("/manifest.webmanifest")
+    def manifest() -> FileResponse:
+        return FileResponse(
+            _WEB_DIR / "manifest.webmanifest",
+            media_type="application/manifest+json",
+        )
+
+    # アプリ資産（app.js / styles.css / icons/*）
     app.mount("/app", StaticFiles(directory=str(_WEB_DIR), html=True), name="web")
