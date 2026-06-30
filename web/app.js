@@ -75,15 +75,37 @@ function stopsText(a) {
   if (a.stops_away === null || a.stops_away === undefined) return "位置情報なし";
   return a.stops_away === 0 ? "まもなく到着" : `あと${a.stops_away}駅`;
 }
+function hhmm(epochSec) {
+  return new Date(epochSec * 1000).toLocaleTimeString("ja-JP", {
+    hour: "2-digit", minute: "2-digit",
+  });
+}
+// 定刻との差（遅れ/早発）。{cls, txt} を返す。RT無しは null。
+function delayInfo(a) {
+  if (a.delay_sec === null || a.delay_sec === undefined) return null;
+  const m = Math.round(Math.abs(a.delay_sec) / 60);
+  if (Math.abs(a.delay_sec) < 60) return { cls: "ontime", txt: "ほぼ定刻" };
+  if (a.delay_sec > 0) return { cls: "late", txt: `+${m}分 遅れ` };
+  return { cls: "early", txt: `−${m}分 早発` };
+}
 
 function renderArrival(a) {
   const row = el("div", "arr");
-  row.append(el("span", "route", a.route || a.route_id));
-  row.append(el("span", "head", `${a.headsign || ""}方面`));
-  row.append(el("span", "stops", stopsText(a)));
-  const eta = el("span", "eta" + (a.imminent ? " imminent" : ""), etaText(a));
-  row.append(eta);
-  row.append(el("span", `badge ${a.source}`, SOURCE_LABEL[a.source]));
+
+  const main = el("div", "arr-main");
+  main.append(el("span", "route", a.route || a.route_id));
+  main.append(el("span", "head", `${a.headsign || ""}方面`));
+  main.append(el("span", "eta" + (a.imminent ? " imminent" : ""), etaText(a)));
+  row.append(main);
+
+  const sub = el("div", "arr-sub");
+  sub.append(el("span", "sched", `定刻 ${hhmm(a.scheduled_epoch)}`));
+  const d = delayInfo(a);
+  if (d) sub.append(el("span", `delay ${d.cls}`, d.txt));
+  sub.append(el("span", "stops", stopsText(a)));
+  sub.append(el("span", `badge ${a.source}`, SOURCE_LABEL[a.source]));
+  row.append(sub);
+
   return row;
 }
 

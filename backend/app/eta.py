@@ -17,14 +17,20 @@ from __future__ import annotations
 import datetime as dt
 from dataclasses import dataclass, asdict
 
+from zoneinfo import ZoneInfo
+
 from .gtfs_static import StaticGTFS
 from .config import settings
 
+# GTFS-JP の時刻は日本時間。サーバのタイムゾーン（Render等はUTC）に依存せず
+# 必ず JST で epoch 化する。
+JST = ZoneInfo("Asia/Tokyo")
+
 
 def gtfs_time_to_epoch(s: str, service_date: dt.date) -> float:
-    """GTFS時刻（"25:30:00" など24時超え対応）を epoch 秒へ。"""
+    """GTFS時刻（"25:30:00" など24時超え対応）を epoch 秒へ。サービス日0時(JST)起点。"""
     h, m, sec = map(int, s.split(":"))
-    base = dt.datetime.combine(service_date, dt.time(0, 0, 0))
+    base = dt.datetime.combine(service_date, dt.time(0, 0, 0), tzinfo=JST)
     return (base + dt.timedelta(hours=h, minutes=m, seconds=sec)).timestamp()
 
 
@@ -45,6 +51,8 @@ class Arrival:
     stops_away: int | None
     eta_minutes: float
     eta_epoch: float
+    scheduled_epoch: float      # 正規（定刻）の到着時刻
+    delay_sec: int | None       # 実際(予測) − 定刻。+遅れ / −早発。RT無しは None
     source: str                 # "predict" | "delay" | "schedule"
     source_label: str
     status: str                 # "running" | "no_realtime"
@@ -86,7 +94,7 @@ class ArrivalsResult:
 
 
 def _candidate_days(now_epoch: float) -> list[dt.date]:
-    today = dt.date.fromtimestamp(now_epoch)
+    today = dt.datetime.fromtimestamp(now_epoch, JST).date()
     # 24時超え便を拾うため前日サービスも候補に入れる
     return [today, today - dt.timedelta(days=1)]
 
@@ -112,7 +120,7 @@ def find_arrivals(static: StaticGTFS, stop_id: str, now_epoch: float,
     seen_trip_ids: set[str] = set()
     # 始発前/終バス後判定用: 当日この停留所に来る全予定時刻
     all_sched_today: list[float] = []
-    today = dt.date.fromtimestamp(now_epoch)
+    today = dt.datetime.fromtimestamp(now_epoch, JST).date()
 
     for day in _candidate_days(now_epoch):
         services = static.active_services(day)
@@ -141,6 +149,9 @@ def find_arrivals(static: StaticGTFS, stop_id: str, now_epoch: float,
                     eta_epoch, source = sched + su["delay"], "delay"
                 else:
                     eta_epoch, source = sched, "schedule"
+
+                # 定刻との差（実際/予測 − 定刻）。RT根拠が無い schedule は不明。
+                delay_sec = None if source == "schedule" else round(eta_epoch - sched)
 
                 # 既に通過 or 遠すぎる便は除外
                 if eta_epoch < now_epoch - grace:
@@ -175,6 +186,8 @@ def find_arrivals(static: StaticGTFS, stop_id: str, now_epoch: float,
                     stops_away=stops_away,
                     eta_minutes=(eta_epoch - now_epoch) / 60,
                     eta_epoch=eta_epoch,
+                    scheduled_epoch=sched,
+                    delay_sec=delay_sec,
                     source=source,
                     source_label=SRC_LABEL[source],
                     status=status,

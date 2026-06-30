@@ -44,7 +44,8 @@ class AgencyState:
         # 改正日対応: current が今日をカバーしなければ latest を試す
         content = fetch_bytes(p.static_current_url, settings.static_fixture)
         g = StaticGTFS().load_zip(content)
-        today = dt.date.today()
+        from .eta import JST
+        today = dt.datetime.now(JST).date()
         if not g.covers_date(today) and p.static_future_url and not settings.static_fixture:
             try:
                 future = StaticGTFS().load_zip(fetch_bytes(p.static_future_url))

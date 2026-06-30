@@ -43,15 +43,19 @@ header .sub { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
 }
 .card h3 { margin: 0 0 8px; font-size: 16px; display: flex; justify-content: space-between; }
 .card .delete { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 18px; }
-.arr {
-  display: flex; align-items: baseline; gap: 10px; padding: 8px 0;
-  border-top: 1px solid #26323f;
-}
+.arr { padding: 8px 0; border-top: 1px solid #26323f; }
+.arr-main { display: flex; align-items: baseline; gap: 10px; }
+.arr-sub { display: flex; align-items: center; gap: 8px; margin-top: 4px; flex-wrap: wrap; }
 .arr .route { background: var(--accent); color: #fff; border-radius: 5px; padding: 1px 7px; font-size: 12px; white-space: nowrap; }
 .arr .eta { font-size: 20px; font-weight: 700; }
 .arr .eta.imminent { color: var(--accent2); }
 .arr .stops { color: var(--muted); font-size: 13px; }
 .arr .head { flex: 1; font-size: 14px; }
+.arr .sched { color: var(--muted); font-size: 13px; }
+.delay { font-size: 12px; font-weight: 700; padding: 1px 7px; border-radius: 4px; }
+.delay.late   { background: #4a2424; color: #ff9b9b; }   /* 遅れ */
+.delay.early  { background: #2a3a4a; color: #8fd0ff; }   /* 早発 */
+.delay.ontime { background: #20402a; color: #86e0a0; }   /* ほぼ定刻 */
 .badge { font-size: 11px; padding: 1px 6px; border-radius: 4px; }
 .badge.predict { background: #1d3b5a; color: #7fb6ff; }
 .badge.delay   { background: #4a3a1a; color: #e0b860; }

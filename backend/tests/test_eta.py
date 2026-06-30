@@ -3,20 +3,20 @@
 
 import datetime as dt
 
-from app.eta import find_arrivals, gtfs_time_to_epoch
+from app.eta import find_arrivals, gtfs_time_to_epoch, JST
 from conftest import make_static
 
 
 def at(base_day, hh, mm, ss=0):
-    """base_day の時刻を epoch に。"""
+    """base_day の JST 時刻を epoch に（GTFS時刻はJST基準のため）。"""
     return dt.datetime.combine(
-        base_day, dt.time(hh, mm, ss)).timestamp()
+        base_day, dt.time(hh, mm, ss), tzinfo=JST).timestamp()
 
 
 # ── 24時超え時刻 ─────────────────────────────────────────
 def test_gtfs_time_to_epoch_overnight(base_day):
     e = gtfs_time_to_epoch("25:30:00", base_day)
-    expect = dt.datetime.combine(base_day, dt.time(0, 0)) + dt.timedelta(hours=25, minutes=30)
+    expect = dt.datetime.combine(base_day, dt.time(0, 0), tzinfo=JST) + dt.timedelta(hours=25, minutes=30)
     assert e == expect.timestamp()
 
 
@@ -51,6 +51,32 @@ def test_delay_only(simple_static, base_day):
     a = res.arrivals[0]
     assert a.source == "delay"
     assert round(a.eta_minutes) == 23  # 20 + 3
+
+
+# ── 定刻との差（遅れ/早発）──────────────────────────────────
+def test_delay_sec_from_prediction(simple_static, base_day):
+    now = at(base_day, 7, 50)
+    # 定刻08:10、予測08:13 → +180秒の遅れ
+    tu = {"T1": {"S_B": {"arr": at(base_day, 8, 13), "delay": None}}}
+    res = find_arrivals(simple_static, "S_B", now, {}, tu)
+    a = res.arrivals[0]
+    assert a.scheduled_epoch == at(base_day, 8, 10)
+    assert a.delay_sec == 180
+
+
+def test_delay_sec_early(simple_static, base_day):
+    now = at(base_day, 7, 50)
+    tu = {"T1": {"S_B": {"arr": None, "delay": -120}}}  # 2分早発
+    res = find_arrivals(simple_static, "S_B", now, {}, tu)
+    assert res.arrivals[0].delay_sec == -120
+
+
+def test_delay_sec_none_without_rt(simple_static, base_day):
+    now = at(base_day, 7, 50)
+    res = find_arrivals(simple_static, "S_B", now, {}, {})
+    a = res.arrivals[0]
+    assert a.delay_sec is None
+    assert a.scheduled_epoch == at(base_day, 8, 10)
 
 
 # ── あと何駅 ─────────────────────────────────────────────
@@ -97,7 +123,7 @@ def test_horizon_excludes_far(simple_static, base_day):
 # ── 運行日判定 ───────────────────────────────────────────
 def test_not_running_on_weekend(simple_static):
     sunday = dt.date(2026, 6, 28)
-    now = dt.datetime.combine(sunday, dt.time(7, 50)).timestamp()
+    now = dt.datetime.combine(sunday, dt.time(7, 50), tzinfo=JST).timestamp()
     res = find_arrivals(simple_static, "S_B", now, {}, {})
     assert res.arrivals == []
     assert res.service_status == "no_service"
@@ -143,7 +169,7 @@ def test_overnight_trip_from_previous_day(base_day):
     g = make_static(stops, routes, trips, stop_times, calendar)
     # base_day は火曜。翌日水曜の 01:00 に評価 → 火曜サービスの 25:10 便
     wed = base_day + dt.timedelta(days=1)
-    now = dt.datetime.combine(wed, dt.time(1, 0)).timestamp()
+    now = dt.datetime.combine(wed, dt.time(1, 0), tzinfo=JST).timestamp()
     res = find_arrivals(g, "S_B", now, {}, {})
     assert len(res.arrivals) == 1
     assert round(res.arrivals[0].eta_minutes) == 10
@@ -165,7 +191,7 @@ def test_circular_route_two_occurrences(base_day):
     ]}
     calendar = {"WD": {"days": {0, 1, 2, 3, 4}, "start": "20260101", "end": "20271231"}}
     g = make_static(stops, routes, trips, stop_times, calendar)
-    now = dt.datetime.combine(base_day, dt.time(8, 15)).timestamp()
+    now = dt.datetime.combine(base_day, dt.time(8, 15), tzinfo=JST).timestamp()
     # 08:10 の出現は通過済み、08:30 の出現が直近
     res = find_arrivals(g, "S_B", now, {}, {})
     assert len(res.arrivals) == 1
