@@ -174,25 +174,46 @@ async function doSearch() {
     const box = el("div", "result");
     box.append(el("div", "name", s.name));
     const routes = await api(`/stops/${encodeURIComponent(s.stopId)}/routes?agencyId=${AGENCY_ID}`);
-    // 「全便」登録
-    addRouteOption(box, s, { route: "すべての路線・方面", routeId: null, directionId: null });
-    routes.forEach((r) => addRouteOption(box, s, r));
+    // 路線ごとではなく「方向（上り/下り）」だけを選べるようにする。
+    // その方向を通る全路線を対象に登録する（routeId は指定しない）。
+    const byDir = {};
+    routes.forEach((r) => {
+      const key = r.directionId ?? "";
+      (byDir[key] ||= []).push(r);
+    });
+    const dirs = Object.keys(byDir).sort();
+    if (dirs.length === 0) {
+      addDirOption(box, s, null, []);            // 路線情報なし → 全便
+    } else {
+      dirs.forEach((dir) => {
+        const heads = [...new Set(byDir[dir].map((r) => r.headsign).filter(Boolean))];
+        addDirOption(box, s, dir, heads);
+      });
+    }
     root.append(box);
   }
 }
-function addRouteOption(box, stop, r) {
+
+// direction_id → 上り/下り。0/1 の対応は事業者により異なるため、行き先ヒントも併記する。
+function dirLabel(dir) {
+  if (dir === "0") return "上り";
+  if (dir === "1") return "下り";
+  return dir ? `方向${dir}` : "全方面";
+}
+
+function addDirOption(box, stop, dir, heads) {
   const opt = el("div", "route-opt");
-  const label = r.routeId ? `[${r.route}] ${r.headsign || ""}方面` : r.route;
-  opt.append(el("span", null, label));
+  const headHint = heads.length ? `（${heads.slice(0, 3).join("・")}方面）` : "";
+  opt.append(el("span", null, dirLabel(dir) + headHint));
   const btn = el("button", null, "＋登録");
   btn.onclick = () => {
     const added = addFav({
       agencyId: AGENCY_ID,
       stopId: stop.stopId,
       stopName: stop.name,
-      routeId: r.routeId || null,
-      directionId: r.directionId ?? null,
-      routeLabel: r.routeId ? `${r.route} ${r.headsign || ""}方面` : null,
+      routeId: null,                              // 路線は絞らない（方向のみ）
+      directionId: dir || null,
+      routeLabel: dirLabel(dir) + (heads.length ? `・${heads[0]}方面` : ""),
     });
     btn.textContent = added ? "登録済み ✓" : "登録済み";
     btn.disabled = true;
