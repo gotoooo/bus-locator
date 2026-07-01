@@ -59,10 +59,11 @@ class StaticGTFS:
                 "headsign": r.get("trip_headsign", ""),
             }
         for r in rows("stop_times.txt"):
+            # 公式時刻表は「発車時刻」。departure を優先し、無ければ arrival。
             self.stop_times.setdefault(r["trip_id"], []).append({
                 "seq": int(r["stop_sequence"]),
                 "stop_id": r["stop_id"],
-                "arr": r.get("arrival_time") or r.get("departure_time"),
+                "arr": r.get("departure_time") or r.get("arrival_time"),
             })
         for lst in self.stop_times.values():
             lst.sort(key=lambda x: x["seq"])

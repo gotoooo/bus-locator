@@ -49,17 +49,18 @@ def index_trip_updates(feed: pb.FeedMessage) -> dict:
         for stu in tu.stop_time_update:
             arr = None
             delay = None
-            if stu.HasField("arrival"):
-                if stu.arrival.HasField("time"):
-                    arr = stu.arrival.time
-                if stu.arrival.HasField("delay"):
-                    delay = stu.arrival.delay
-            # 到着情報が無ければ出発で代替
-            if arr is None and stu.HasField("departure"):
+            # 発車基準に統一（時刻表が発車時刻のため）。departure を優先。
+            if stu.HasField("departure"):
                 if stu.departure.HasField("time"):
                     arr = stu.departure.time
-                if delay is None and stu.departure.HasField("delay"):
+                if stu.departure.HasField("delay"):
                     delay = stu.departure.delay
+            # 発車情報が無ければ到着で代替
+            if arr is None and stu.HasField("arrival"):
+                if stu.arrival.HasField("time"):
+                    arr = stu.arrival.time
+                if delay is None and stu.arrival.HasField("delay"):
+                    delay = stu.arrival.delay
             per_stop[stu.stop_id] = {
                 "arr": arr,
                 "delay": delay,
