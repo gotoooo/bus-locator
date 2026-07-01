@@ -20,7 +20,7 @@ import time
 import pathlib
 
 from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -29,7 +29,14 @@ from .providers import PROVIDERS, DEFAULT_AGENCY_ID
 from .poller import DataManager
 from .eta import find_arrivals
 
-app = FastAPI(title="芸陽バス 接近情報API", version="1.0.0")
+
+class UTF8JSONResponse(JSONResponse):
+    # 生JSONをブラウザで開いても文字化けしないよう charset を明示。
+    media_type = "application/json; charset=utf-8"
+
+
+app = FastAPI(title="芸陽バス 接近情報API", version="1.0.0",
+              default_response_class=UTF8JSONResponse)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"], allow_methods=["*"], allow_headers=["*"],

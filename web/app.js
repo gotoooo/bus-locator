@@ -170,10 +170,18 @@ async function doSearch() {
   const stops = await api(`/stops?agencyId=${AGENCY_ID}&q=${encodeURIComponent(q)}`);
   root.innerHTML = "";
   if (!stops.length) { root.textContent = "一致するバス停がありません"; return; }
+  // 同名バス停（のりば違い）を見分けられるよう、行き先を併記する
   for (const s of stops) {
     const box = el("div", "result");
-    box.append(el("div", "name", s.name));
     const routes = await api(`/stops/${encodeURIComponent(s.stopId)}/routes?agencyId=${AGENCY_ID}`);
+    const allHeads = [...new Set(routes.map((r) => r.headsign).filter(Boolean))];
+
+    const head = el("div", "name", s.name);
+    if (allHeads.length) {
+      head.append(el("span", "stop-hint", ` ▶ ${allHeads.slice(0, 4).join("・")}方面`));
+    }
+    box.append(head);
+
     // 路線ごとではなく「方向（上り/下り）」だけを選べるようにする。
     // その方向を通る全路線を対象に登録する（routeId は指定しない）。
     const byDir = {};

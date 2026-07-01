@@ -72,6 +72,7 @@ header .sub { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
   background: var(--card); border-radius: 10px; padding: 10px 12px;
 }
 .result .name { font-size: 15px; margin-bottom: 6px; }
+.result .stop-hint { color: var(--muted); font-size: 12px; font-weight: 400; }
 .route-opt {
   display: flex; justify-content: space-between; align-items: center;
   padding: 6px 0; border-top: 1px solid #26323f; font-size: 13px;

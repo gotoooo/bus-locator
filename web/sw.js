@@ -6,7 +6,7 @@
 //    → 常に network-only。オフライン時は素直に失敗させる
 //  - シェルは stale-while-revalidate、画面遷移は network-first(+シェルfallback)
 
-const VERSION = "geiyo-bus-v4";
+const VERSION = "geiyo-bus-v5";
 const SHELL_CACHE = `shell-${VERSION}`;
 
 const SHELL = [
