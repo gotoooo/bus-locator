@@ -36,7 +36,7 @@ const SOURCE_LABEL = { predict: "リアルタイム予測", delay: "定刻+遅�
 function etaText(a) {
   if (a.imminent) return "まもなく";
   const m = Math.round(a.eta_minutes);
-  return m <= 0 ? "まもなく" : `${m}分`;
+  return m <= 0 ? "まもなく" : `あと${m}分`;
 }
 // 運行状態の表示。走行中は「あと○駅」、未出庫は「発車前」。
 function stopsText(a) {
