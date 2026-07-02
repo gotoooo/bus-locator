@@ -61,6 +61,9 @@ class Arrival:
     vehicle_lat: float | None = None
     vehicle_lon: float | None = None
     vehicle_bearing: float | None = None
+    # 運行状態: この便が実際に走行中か（車両位置が取れているか）
+    running: bool = False
+    current_stop_name: str | None = None   # 走行中なら現在地付近の停留所名
     # 通勤用: 乗車する停留所（のりば）情報
     board_stop_id: str | None = None
     board_stop_name: str | None = None
@@ -176,6 +179,12 @@ def find_arrivals(static: StaticGTFS, stop_id: str, now_epoch: float,
                 # RT根拠があるか（予測/遅延/位置のいずれか）
                 has_rt = has_position or source in ("predict", "delay")
                 status = "running" if has_rt else "no_realtime"
+                is_running = veh is not None
+                current_stop_name = None
+                if veh and veh.get("seq"):
+                    cur = next((s for s in stimes if s["seq"] == veh["seq"]), None)
+                    if cur:
+                        current_stop_name = static.stops.get(cur["stop_id"], {}).get("name")
 
                 # trip_id 単位の重複排除（最も早い出現を採用）
                 if trip_id in seen_trip_ids:
@@ -201,6 +210,8 @@ def find_arrivals(static: StaticGTFS, stop_id: str, now_epoch: float,
                     vehicle_lat=veh["lat"] if has_position else None,
                     vehicle_lon=veh["lon"] if has_position else None,
                     vehicle_bearing=veh.get("bearing") if has_position else None,
+                    running=is_running,
+                    current_stop_name=current_stop_name,
                 ))
 
     results.sort(key=lambda a: a.eta_minutes)
@@ -295,6 +306,12 @@ def find_commute(static: StaticGTFS, from_kw: str, to_kw: str, now_epoch: float,
             has_position = bool(veh and veh.get("lat") is not None)
             has_rt = has_position or source in ("predict", "delay")
             bstop = static.stops.get(stop_id, {})
+            running = veh is not None
+            current_stop_name = None
+            if veh and veh.get("seq"):
+                cur = next((s for s in stimes if s["seq"] == veh["seq"]), None)
+                if cur:
+                    current_stop_name = static.stops.get(cur["stop_id"], {}).get("name")
             results.append(Arrival(
                 trip_id=trip_id,
                 route_id=trip["route_id"],
@@ -314,6 +331,8 @@ def find_commute(static: StaticGTFS, from_kw: str, to_kw: str, now_epoch: float,
                 vehicle_lat=veh["lat"] if has_position else None,
                 vehicle_lon=veh["lon"] if has_position else None,
                 vehicle_bearing=veh.get("bearing") if has_position else None,
+                running=running,
+                current_stop_name=current_stop_name,
                 board_stop_id=stop_id,
                 board_stop_name=bstop.get("name"),
                 board_lat=bstop.get("lat"),

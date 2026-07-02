@@ -53,6 +53,7 @@ header .sub { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
 .arr .stops { color: var(--muted); font-size: 13px; }
 .arr .head { flex: 1; font-size: 14px; }
 .arr .sched { color: var(--muted); font-size: 13px; }
+.arr .curstop { color: var(--accent2); font-size: 12px; }
 .delay { font-size: 12px; font-weight: 700; padding: 1px 7px; border-radius: 4px; }
 .delay.late   { background: #4a2424; color: #ff9b9b; }   /* 遅れ */
 .delay.early  { background: #2a3a4a; color: #8fd0ff; }   /* 早発 */

@@ -38,9 +38,11 @@ function etaText(a) {
   const m = Math.round(a.eta_minutes);
   return m <= 0 ? "まもなく" : `${m}分`;
 }
+// 運行状態の表示。走行中は「あと○駅」、未出庫は「発車前」。
 function stopsText(a) {
-  if (a.stops_away === null || a.stops_away === undefined) return "位置情報なし";
-  return a.stops_away === 0 ? "まもなく到着" : `あと${a.stops_away}駅`;
+  if (!a.running) return "発車前";
+  if (a.stops_away === null || a.stops_away === undefined) return "運行中";
+  return a.stops_away <= 0 ? "まもなく到着" : `あと${a.stops_away}駅`;
 }
 function hhmm(epochSec) {
   return new Date(epochSec * 1000).toLocaleTimeString("ja-JP", {
@@ -70,6 +72,9 @@ function renderArrival(a) {
   const d = delayInfo(a);
   if (d) sub.append(el("span", `delay ${d.cls}`, d.txt));
   sub.append(el("span", "stops", stopsText(a)));
+  if (a.running && a.current_stop_name) {
+    sub.append(el("span", "curstop", `現在 ${a.current_stop_name}付近`));
+  }
   sub.append(el("span", `badge ${a.source}`, SOURCE_LABEL[a.source]));
   row.append(sub);
 
