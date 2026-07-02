@@ -90,6 +90,7 @@ class ArrivalsResult:
     service_status: str         # "in_service" | "before_service" | "finished" | "no_service" | "no_realtime"
     rt_available: bool
     arrivals: list
+    progress: dict | None = None   # 直近便の停留所ごと進捗（横スクロール表示用）
 
     def to_dict(self) -> dict:
         return {
@@ -98,7 +99,40 @@ class ArrivalsResult:
             "serviceStatus": self.service_status,
             "rtAvailable": self.rt_available,
             "arrivals": [a.to_dict() for a in self.arrivals],
+            "progress": self.progress,
         }
+
+
+def _trip_progress(static: StaticGTFS, trip_id: str, day: dt.date, stimes: list,
+                   board_stop_id: str, veh: dict | None, tu_for_trip: dict) -> dict:
+    """1便の全停留所の進捗（通過済み/現在地/定刻・予測）を組む。横スクロール表示用。"""
+    cur_seq = veh["seq"] if veh and veh.get("seq") else None
+    stops = []
+    for s in stimes:
+        sched = gtfs_time_to_epoch(s["arr"], day)
+        su = tu_for_trip.get(s["stop_id"], {}) if tu_for_trip else {}
+        if su.get("arr"):
+            pred = float(su["arr"])
+        elif su.get("delay") is not None:
+            pred = sched + su["delay"]
+        else:
+            pred = None
+        stops.append({
+            "seq": s["seq"],
+            "stopId": s["stop_id"],
+            "name": static.stops.get(s["stop_id"], {}).get("name", s["stop_id"]),
+            "scheduledEpoch": sched,
+            "predictedEpoch": pred,
+            "isBoard": s["stop_id"] == board_stop_id,
+            "passed": cur_seq is not None and s["seq"] < cur_seq,
+            "atVehicle": cur_seq is not None and s["seq"] == cur_seq,
+        })
+    return {
+        "tripId": trip_id,
+        "currentSeq": cur_seq,
+        "running": veh is not None,
+        "stops": stops,
+    }
 
 
 def _candidate_days(now_epoch: float) -> list[dt.date]:
@@ -254,6 +288,7 @@ def find_commute(static: StaticGTFS, from_kw: str, to_kw: str, now_epoch: float,
 
     results: list[Arrival] = []
     seen_trip_ids: set[str] = set()
+    trip_meta: dict = {}          # trip_id -> (day, stimes, board_stop_id)（進捗組立用）
     all_sched_today: list[float] = []
     today = dt.datetime.fromtimestamp(now_epoch, JST).date()
 
@@ -302,6 +337,7 @@ def find_commute(static: StaticGTFS, from_kw: str, to_kw: str, now_epoch: float,
             if trip_id in seen_trip_ids:
                 continue
             seen_trip_ids.add(trip_id)
+            trip_meta[trip_id] = (day, stimes, stop_id)
 
             has_position = bool(veh and veh.get("lat") is not None)
             has_rt = has_position or source in ("predict", "delay")
@@ -341,12 +377,24 @@ def find_commute(static: StaticGTFS, from_kw: str, to_kw: str, now_epoch: float,
 
     results.sort(key=lambda a: a.eta_minutes)
     service_status = _service_status(results, all_sched_today, now_epoch, rt_available)
+
+    # 直近便（走行中を優先、無ければ先頭）の停留所進捗を組む
+    progress = None
+    if results:
+        target = next((a for a in results if a.running), results[0])
+        day, stimes, board_id = trip_meta[target.trip_id]
+        progress = _trip_progress(
+            static, target.trip_id, day, stimes, board_id,
+            vehicles.get(target.trip_id), trip_updates.get(target.trip_id, {}),
+        )
+
     return ArrivalsResult(
         stop_id="",
         stop_name=f"{from_kw}→{to_kw}",
         service_status=service_status,
         rt_available=rt_available,
         arrivals=results,
+        progress=progress,
     )
 
 

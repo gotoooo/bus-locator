@@ -112,11 +112,47 @@ async function loadCommute() {
       card.append(el("div", "servicestatus", SERVICE_LABEL[c.serviceStatus] || "直近の便はありません"));
     } else {
       c.arrivals.slice(0, 3).forEach((a) => card.append(renderArrival(a)));
-      card.onclick = () => openDetail(leg, c);
+      if (c.progress && c.progress.stops.length) {
+        card.append(renderProgress(c.progress));
+      }
     }
     root.append(card);
   });
   $("#status").textContent = "最終更新 " + new Date().toLocaleTimeString("ja-JP");
+}
+
+// ── 直近便の停留所進捗（横スクロール）─────────────────────
+function renderProgress(p) {
+  const wrap = el("div", "progress-wrap");
+  wrap.append(el("div", "progress-cap",
+    p.running ? "🚌 直近便の現在位置（横スクロール）" : "🚏 直近便の経路（発車前）"));
+
+  const rail = el("div", "progress");
+  let boardCell = null, nowCell = null;
+  p.stops.forEach((s) => {
+    const cls = "stopcell" +
+      (s.passed ? " passed" : "") +
+      (s.isBoard ? " board" : "") +
+      (s.atVehicle ? " now" : "");
+    const cell = el("div", cls);
+    const t = s.predictedEpoch || s.scheduledEpoch;
+    cell.append(el("div", "t", hhmm(t)));
+    const railrow = el("div", "rail");
+    railrow.append(el("span", "node", s.atVehicle ? "🚌" : ""));
+    cell.append(railrow);
+    cell.append(el("div", "nm", s.name || ""));
+    rail.append(cell);
+    if (s.isBoard) boardCell = cell;
+    if (s.atVehicle) nowCell = cell;
+  });
+  wrap.append(rail);
+
+  // 乗車バス停（無ければ現在地）が見えるよう横スクロール位置を寄せる
+  requestAnimationFrame(() => {
+    const target = nowCell || boardCell;
+    if (target) rail.scrollLeft = target.offsetLeft - rail.clientWidth / 2 + target.clientWidth / 2;
+  });
+  return wrap;
 }
 
 $("#refresh").onclick = loadCommute;
@@ -128,72 +164,6 @@ function setAuto(on) {
   if (on) timer = setInterval(loadCommute, 15000);
 }
 $("#autorefresh").onchange = (e) => setAuto(e.target.checked);
-
-// ── 詳細（地図つき）──────────────────────────────────────
-let map = null, markers = [];
-const OSM_STYLE = {
-  version: 8,
-  sources: {
-    osm: {
-      type: "raster",
-      tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
-      tileSize: 256,
-      attribution: "© OpenStreetMap contributors",
-    },
-  },
-  layers: [{ id: "osm", type: "raster", source: "osm" }],
-};
-
-function openDetail(leg, c) {
-  $("#detail-title").textContent = leg.label;
-  $("#detail").classList.remove("hidden");
-  const list = $("#detail-arrivals");
-  list.innerHTML = "";
-  if (c.arrivals.length === 0) {
-    list.append(el("div", "servicestatus", SERVICE_LABEL[c.serviceStatus] || "直近の便はありません"));
-  }
-  c.arrivals.forEach((a) => list.append(renderArrival(a)));
-  drawMap(c);
-}
-$("#detail-close").onclick = () => $("#detail").classList.add("hidden");
-
-function drawMap(c) {
-  if (typeof maplibregl === "undefined") {
-    $("#map").innerHTML = '<div class="muted" style="padding:12px">地図ライブラリを読み込めませんでした</div>';
-    return;
-  }
-  const withPos = c.arrivals.filter((a) => a.vehicle);
-  const board = c.arrivals.find((a) => a.board_lat != null);
-  const center =
-    (withPos[0]?.vehicle && [withPos[0].vehicle.lon, withPos[0].vehicle.lat]) ||
-    (board && [board.board_lon, board.board_lat]) ||
-    [132.74, 34.42];
-
-  if (!map) {
-    map = new maplibregl.Map({ container: "map", style: OSM_STYLE, center, zoom: 15 });
-    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
-  } else {
-    map.setStyle(OSM_STYLE);
-    map.jumpTo({ center, zoom: 15 });
-  }
-  markers.forEach((m) => m.remove());
-  markers = [];
-
-  // 乗車バス停（青ピン）
-  if (board) {
-    markers.push(new maplibregl.Marker({ color: "#3366cc" })
-      .setLngLat([board.board_lon, board.board_lat])
-      .setPopup(new maplibregl.Popup().setText("🚏 " + (board.board_stop_name || "乗車バス停")))
-      .addTo(map));
-  }
-  // 走行中車両（緑ピン）
-  withPos.forEach((a) => {
-    markers.push(new maplibregl.Marker({ color: "#2aa84a" })
-      .setLngLat([a.vehicle.lon, a.vehicle.lat])
-      .setPopup(new maplibregl.Popup().setText(`🚌 ${a.route} ${a.headsign}方面 ${etaText(a)}`))
-      .addTo(map));
-  });
-}
 
 // ── 起動 ──────────────────────────────────────────────────
 loadCommute();
