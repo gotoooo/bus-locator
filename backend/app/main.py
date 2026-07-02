@@ -27,7 +27,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .config import settings
 from .providers import PROVIDERS, DEFAULT_AGENCY_ID
 from .poller import DataManager
-from .eta import find_arrivals
+from .eta import find_arrivals, find_commute
 
 
 class UTF8JSONResponse(JSONResponse):
@@ -134,6 +134,25 @@ def arrivals(stopId: str,
              routeId: str | None = None,
              directionId: str | None = None) -> dict:
     return _arrivals(agencyId, stopId, routeId, directionId)
+
+
+@app.get("/commute")
+def commute(fromQ: str = Query(..., alias="from", description="乗車バス停名キーワード"),
+            toQ: str = Query(..., alias="to", description="降車方面のバス停名キーワード"),
+            agencyId: int = DEFAULT_AGENCY_ID) -> dict:
+    """通勤片道: from に停まった後 to へ向かう便の直近便（のりば/方向の推測不要）。"""
+    st = _require_static(agencyId)
+    static, vehicles, trip_updates, rt_fresh = st.snapshot()
+    result = find_commute(
+        static, fromQ, toQ, time.time(), vehicles, trip_updates,
+        rt_available=rt_fresh,
+    )
+    out = result.to_dict()
+    out["agencyId"] = agencyId
+    out["from"] = fromQ
+    out["to"] = toQ
+    out["alerts"] = st.alerts_for()
+    return out
 
 
 # ── Alert ────────────────────────────────────────────────

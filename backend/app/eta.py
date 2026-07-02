@@ -61,6 +61,11 @@ class Arrival:
     vehicle_lat: float | None = None
     vehicle_lon: float | None = None
     vehicle_bearing: float | None = None
+    # 通勤用: 乗車する停留所（のりば）情報
+    board_stop_id: str | None = None
+    board_stop_name: str | None = None
+    board_lat: float | None = None
+    board_lon: float | None = None
 
     def to_dict(self) -> dict:
         d = asdict(self)
@@ -206,6 +211,120 @@ def find_arrivals(static: StaticGTFS, stop_id: str, now_epoch: float,
     return ArrivalsResult(
         stop_id=stop_id,
         stop_name=stop_name,
+        service_status=service_status,
+        rt_available=rt_available,
+        arrivals=results,
+    )
+
+
+def find_commute(static: StaticGTFS, from_kw: str, to_kw: str, now_epoch: float,
+                 vehicles: dict, trip_updates: dict,
+                 horizon_min: int | None = None,
+                 rt_available: bool = True) -> ArrivalsResult:
+    """
+    通勤片道の直近便。
+
+    「from_kw を名前に含む停留所に停まった後、同じ便が to_kw を含む停留所にも
+    停まる（stop_sequence が後）」便＝この方向、と定義する。
+    direction_id や のりば を推測しないので、上下・のりばの取り違えが起きない。
+    乗車停留所（board_*）は便ごとに実際に停まる from 停留所を用いる。
+    """
+    horizon_min = horizon_min if horizon_min is not None else settings.arrivals_horizon_min
+    grace = settings.passed_grace_sec
+    imminent_sec = settings.imminent_threshold_min * 60
+
+    from_stops = {sid for sid, s in static.stops.items() if from_kw in s["name"]}
+    to_stops = {sid for sid, s in static.stops.items() if to_kw in s["name"]}
+
+    # from 停留所を通る便だけが候補
+    candidates: set[str] = set()
+    for sid in from_stops:
+        candidates |= static.trips_by_stop.get(sid, set())
+
+    results: list[Arrival] = []
+    seen_trip_ids: set[str] = set()
+    all_sched_today: list[float] = []
+    today = dt.datetime.fromtimestamp(now_epoch, JST).date()
+
+    for day in _candidate_days(now_epoch):
+        services = static.active_services(day)
+        for trip_id in candidates:
+            trip = static.trips.get(trip_id)
+            if not trip or trip["service_id"] not in services:
+                continue
+            stimes = static.stop_times.get(trip_id, [])
+            # 乗車stop = 最初に現れる from 停留所
+            board = next((s for s in stimes if s["stop_id"] in from_stops), None)
+            if not board:
+                continue
+            # その後に to 停留所へ行く便だけ（＝この通勤方向）
+            if not any(s["stop_id"] in to_stops and s["seq"] > board["seq"] for s in stimes):
+                continue
+
+            stop_id = board["stop_id"]
+            sched = gtfs_time_to_epoch(board["arr"], day)
+            if day == today:
+                all_sched_today.append(sched)
+
+            su = trip_updates.get(trip_id, {}).get(stop_id, {})
+            if su.get("arr"):
+                eta_epoch, source = float(su["arr"]), "predict"
+            elif su.get("delay") is not None:
+                eta_epoch, source = sched + su["delay"], "delay"
+            else:
+                eta_epoch, source = sched, "schedule"
+
+            delay_sec = None if source == "schedule" else round(eta_epoch - sched)
+
+            if eta_epoch < now_epoch - grace:
+                continue
+            if eta_epoch > now_epoch + horizon_min * 60:
+                continue
+
+            veh = vehicles.get(trip_id)
+            stops_away = None
+            if veh and veh.get("seq"):
+                stops_away = board["seq"] - veh["seq"]
+                if stops_away < 0:
+                    continue
+
+            if trip_id in seen_trip_ids:
+                continue
+            seen_trip_ids.add(trip_id)
+
+            has_position = bool(veh and veh.get("lat") is not None)
+            has_rt = has_position or source in ("predict", "delay")
+            bstop = static.stops.get(stop_id, {})
+            results.append(Arrival(
+                trip_id=trip_id,
+                route_id=trip["route_id"],
+                route=static.routes.get(trip["route_id"], trip["route_id"]),
+                headsign=trip["headsign"],
+                direction_id=trip["direction"],
+                stops_away=stops_away,
+                eta_minutes=(eta_epoch - now_epoch) / 60,
+                eta_epoch=eta_epoch,
+                scheduled_epoch=sched,
+                delay_sec=delay_sec,
+                source=source,
+                source_label=SRC_LABEL[source],
+                status="running" if has_rt else "no_realtime",
+                imminent=(eta_epoch - now_epoch) <= imminent_sec,
+                has_position=has_position,
+                vehicle_lat=veh["lat"] if has_position else None,
+                vehicle_lon=veh["lon"] if has_position else None,
+                vehicle_bearing=veh.get("bearing") if has_position else None,
+                board_stop_id=stop_id,
+                board_stop_name=bstop.get("name"),
+                board_lat=bstop.get("lat"),
+                board_lon=bstop.get("lon"),
+            ))
+
+    results.sort(key=lambda a: a.eta_minutes)
+    service_status = _service_status(results, all_sched_today, now_epoch, rt_available)
+    return ArrivalsResult(
+        stop_id="",
+        stop_name=f"{from_kw}→{to_kw}",
         service_status=service_status,
         rt_available=rt_available,
         arrivals=results,

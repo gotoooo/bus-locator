@@ -138,7 +138,13 @@ cd backend && uvicorn app.main:app --port 8000   # http://localhost:8000/
 | GET | `/stops?agencyId=&q=` | バス停名の部分一致検索 |
 | GET | `/stops/{stopId}/routes?agencyId=` | その停留所の路線・方面 |
 | GET | `/arrivals?agencyId=&stopId=&routeId=&directionId=` | 直近便（eta昇順） |
+| GET | `/commute?agencyId=&from=&to=` | 通勤片道: from に停まった後 to へ向かう便の直近便 |
 | GET | `/alerts?agencyId=&routeId=&stopId=` | 運休・迂回Alert |
+
+> 出荷しているPWAは**通勤往復専用**（才の瀬 ⇄ 日下橋）。`/commute` は
+> 「from に停車後に to にも停車する便＝その方向」と定義し、`direction_id` や
+> のりばを推測しないため、上下・のりばの取り違えが起きない。区間は
+> `web/config.js` の `__COMMUTE__` で変更できる。
 
 > お気に入り・ダッシュボードはクライアント側（端末localStorage）で完結するため、サーバAPIは持たない。
 > クライアントは登録した停留所ごとに `/arrivals` を呼ぶ。

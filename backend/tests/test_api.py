@@ -77,6 +77,15 @@ def test_arrivals_route_filter(client):
     assert r.json()["arrivals"] == []
 
 
+def test_commute_endpoint(client):
+    # build_zip: T1 は S_A(08:00)→S_B(08:05)→S_C(08:20)。西条→広島大学 方向。
+    r = client.get("/commute", params={"from": "西条駅", "to": "広島大学"})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["from"] == "西条駅"
+    assert "arrivals" in body and "serviceStatus" in body
+
+
 def test_no_favorites_endpoint(client):
     # お気に入りはサーバに無い（クライアント保持）
     assert client.get("/favorites").status_code == 404

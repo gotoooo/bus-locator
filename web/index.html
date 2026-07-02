@@ -22,36 +22,16 @@
 </head>
 <body>
   <header>
-    <h1>🚌 芸陽バス 接近情報</h1>
-    <p class="sub">登録したバス停の「今どこ・あと何駅・あと何分」</p>
+    <h1>🚌 通勤バス</h1>
+    <p class="sub">才の瀬 ⇄ 日下橋 の直近便</p>
   </header>
 
-  <nav class="tabs">
-    <button data-tab="dashboard" class="active">ダッシュボード</button>
-    <button data-tab="search">バス停を追加</button>
-  </nav>
-
-  <!-- ダッシュボード -->
-  <section id="dashboard" class="tab active">
-    <div class="toolbar">
-      <button id="refresh">↻ 更新</button>
-      <label><input type="checkbox" id="autorefresh" checked> 自動更新(15秒)</label>
-      <span id="status" class="muted"></span>
-    </div>
-    <div id="cards" class="cards"></div>
-    <p id="empty-hint" class="muted">
-      まだ登録がありません。「バス停を追加」から登録してください。
-    </p>
-  </section>
-
-  <!-- 検索・登録 -->
-  <section id="search" class="tab">
-    <div class="searchbar">
-      <input id="q" type="text" placeholder="バス停名で検索（例: 西条駅）" autocomplete="off">
-      <button id="do-search">検索</button>
-    </div>
-    <div id="search-results" class="list"></div>
-  </section>
+  <div class="toolbar">
+    <button id="refresh">↻ 更新</button>
+    <label><input type="checkbox" id="autorefresh" checked> 自動更新(15秒)</label>
+    <span id="status" class="muted"></span>
+  </div>
+  <div id="commute" class="cards"></div>
 
   <!-- 詳細モーダル（地図つき） -->
   <div id="detail" class="modal hidden">

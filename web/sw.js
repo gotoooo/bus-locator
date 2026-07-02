@@ -6,7 +6,7 @@
 //    → 常に network-only。オフライン時は素直に失敗させる
 //  - シェルは stale-while-revalidate、画面遷移は network-first(+シェルfallback)
 
-const VERSION = "geiyo-bus-v5";
+const VERSION = "geiyo-bus-v6";
 const SHELL_CACHE = `shell-${VERSION}`;
 
 const SHELL = [
@@ -21,7 +21,7 @@ const SHELL = [
 
 // APIパス（リアルタイム/動的データ。キャッシュ禁止）
 const API_PREFIXES = [
-  "/arrivals", "/dashboard", "/stops", "/favorites",
+  "/commute", "/arrivals", "/stops",
   "/alerts", "/health", "/agencies",
 ];
 

@@ -3,7 +3,7 @@
 
 import datetime as dt
 
-from app.eta import find_arrivals, gtfs_time_to_epoch, JST
+from app.eta import find_arrivals, find_commute, gtfs_time_to_epoch, JST
 from conftest import make_static
 
 
@@ -173,6 +173,66 @@ def test_overnight_trip_from_previous_day(base_day):
     res = find_arrivals(g, "S_B", now, {}, {})
     assert len(res.arrivals) == 1
     assert round(res.arrivals[0].eta_minutes) == 10
+
+
+# ── 通勤（往復）──────────────────────────────────────────
+def _commute_static():
+    """往路便 TF(才の瀬→…→日下橋) と 復路便 TR(日下橋→…→才の瀬)。"""
+    stops = {
+        "SAI_1": {"name": "才の瀬橋", "lat": 34.40, "lon": 132.70},
+        "MID":   {"name": "中間",     "lat": 34.41, "lon": 132.71},
+        "KUSA_1": {"name": "日下橋",  "lat": 34.42, "lon": 132.72},
+    }
+    routes = {"R": "通勤線"}
+    trips = {
+        "TF": {"route_id": "R", "service_id": "WD", "direction": "0", "headsign": "日下橋方面"},
+        "TR": {"route_id": "R", "service_id": "WD", "direction": "1", "headsign": "才の瀬方面"},
+    }
+    stop_times = {
+        "TF": [
+            {"seq": 1, "stop_id": "SAI_1", "arr": "08:00:00"},
+            {"seq": 2, "stop_id": "MID",   "arr": "08:05:00"},
+            {"seq": 3, "stop_id": "KUSA_1", "arr": "08:10:00"},
+        ],
+        "TR": [
+            {"seq": 1, "stop_id": "KUSA_1", "arr": "18:00:00"},
+            {"seq": 2, "stop_id": "MID",    "arr": "18:05:00"},
+            {"seq": 3, "stop_id": "SAI_1",  "arr": "18:10:00"},
+        ],
+    }
+    calendar = {"WD": {"days": {0, 1, 2, 3, 4}, "start": "20260101", "end": "20271231"}}
+    return make_static(stops, routes, trips, stop_times, calendar)
+
+
+def test_commute_outbound_picks_correct_trip_and_stop(base_day):
+    g = _commute_static()
+    now = at(base_day, 7, 50)  # 才の瀬 08:00 発の20分前
+    res = find_commute(g, "才の瀬", "日下橋", now, {}, {})
+    assert len(res.arrivals) == 1
+    a = res.arrivals[0]
+    assert a.trip_id == "TF"                 # 往路便のみ
+    assert a.board_stop_id == "SAI_1"        # 乗車は才の瀬
+    assert a.board_stop_name == "才の瀬橋"
+    assert round(a.eta_minutes) == 10        # 08:00 まで
+
+
+def test_commute_inbound_is_reverse(base_day):
+    g = _commute_static()
+    now = at(base_day, 17, 50)  # 日下橋 18:00 発の10分前
+    res = find_commute(g, "日下橋", "才の瀬", now, {}, {})
+    assert len(res.arrivals) == 1
+    a = res.arrivals[0]
+    assert a.trip_id == "TR"
+    assert a.board_stop_id == "KUSA_1"
+    assert round(a.eta_minutes) == 10
+
+
+def test_commute_excludes_wrong_direction(base_day):
+    g = _commute_static()
+    # 朝に「日下橋→才の瀬」を見ても、復路便(18:00)は範囲外で空
+    now = at(base_day, 7, 50)
+    res = find_commute(g, "日下橋", "才の瀬", now, {}, {})
+    assert res.arrivals == []
 
 
 # ── 環状路線（同一stopを2回通る）──────────────────────────
