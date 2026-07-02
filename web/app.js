@@ -111,10 +111,11 @@ async function loadCommute() {
     if (c.arrivals.length === 0) {
       card.append(el("div", "servicestatus", SERVICE_LABEL[c.serviceStatus] || "直近の便はありません"));
     } else {
-      c.arrivals.slice(0, 3).forEach((a) => card.append(renderArrival(a)));
+      // 停留所ストリップを便リストの上に表示
       if (c.progress && c.progress.stops.length) {
         card.append(renderProgress(c.progress));
       }
+      c.arrivals.slice(0, 3).forEach((a) => card.append(renderArrival(a)));
     }
     root.append(card);
   });

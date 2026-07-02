@@ -67,7 +67,7 @@ header .sub { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
 .servicestatus { color: var(--muted); font-size: 13px; padding: 6px 0; }
 
 /* 直近便の停留所進捗（横スクロール） */
-.progress-wrap { margin-top: 10px; border-top: 1px solid #26323f; padding-top: 8px; }
+.progress-wrap { margin-bottom: 10px; border-bottom: 1px solid #26323f; padding-bottom: 8px; }
 .progress-cap { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
 .progress { display: flex; overflow-x: auto; padding-bottom: 6px; -webkit-overflow-scrolling: touch; }
 .stopcell { flex: 0 0 auto; width: 62px; text-align: center; }
