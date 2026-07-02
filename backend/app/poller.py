@@ -34,6 +34,7 @@ class AgencyState:
         self.vehicles: dict = {}
         self.trip_updates: dict = {}
         self.alerts: list = []
+        self.rt_diag: dict = {}
         self.rt_updated_at: float = 0.0
         self.rt_ok: bool = False
         self.last_error: str | None = None
@@ -63,10 +64,11 @@ class AgencyState:
         if not p.has_realtime:
             return
         try:
-            veh = index_vehicles(parse_feed(
-                fetch_bytes(p.rt_vehicle_url, settings.rt_vehicle_fixture)))
-            tu = index_trip_updates(parse_feed(
-                fetch_bytes(p.rt_trip_url, settings.rt_trip_fixture)))
+            vfeed = parse_feed(fetch_bytes(p.rt_vehicle_url, settings.rt_vehicle_fixture))
+            tfeed = parse_feed(fetch_bytes(p.rt_trip_url, settings.rt_trip_fixture))
+            veh = index_vehicles(vfeed)
+            tu = index_trip_updates(tfeed)
+            diag = self._rt_diagnostics(vfeed, tfeed)
             alerts = []
             try:
                 alerts = index_alerts(parse_feed(
@@ -77,6 +79,7 @@ class AgencyState:
                 self.vehicles = veh
                 self.trip_updates = tu
                 self.alerts = alerts
+                self.rt_diag = diag
                 self.rt_updated_at = time.time()
                 self.rt_ok = True
                 self.last_error = None
@@ -84,6 +87,19 @@ class AgencyState:
             with self._lock:
                 self.rt_ok = False
                 self.last_error = str(e)
+
+    @staticmethod
+    def _rt_diagnostics(vfeed, tfeed) -> dict:
+        """車両位置と便のtrip_id対応を診断する（「位置情報なし」の原因切り分け用）。"""
+        v_ids = [e.vehicle.trip.trip_id for e in vfeed.entity if e.HasField("vehicle")]
+        t_ids = [e.trip_update.trip.trip_id for e in tfeed.entity if e.HasField("trip_update")]
+        return {
+            "vehicleEntities": len(v_ids),
+            "vehicleWithTripId": sum(1 for x in v_ids if x),
+            "sampleVehicleTripIds": [x for x in v_ids if x][:8],
+            "tripUpdateEntities": len(t_ids),
+            "sampleTripUpdateTripIds": [x for x in t_ids if x][:8],
+        }
 
     # ── 読み取り（ETA算出用スナップショット）──────────────
     def snapshot(self):

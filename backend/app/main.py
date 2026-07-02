@@ -155,6 +155,26 @@ def commute(fromQ: str = Query(..., alias="from", description="乗車バス停�
     return out
 
 
+# ── 診断: 車両位置とtrip_idの対応 ─────────────────────────
+@app.get("/debug/rt")
+def debug_rt(agencyId: int = DEFAULT_AGENCY_ID) -> dict:
+    """「位置情報なし」の原因切り分け。車両/予測のtrip_idが静的と一致するか。"""
+    st = data.get(agencyId)
+    diag = dict(st.rt_diag)
+    v_ids = set(st.vehicles.keys())
+    t_ids = set(st.trip_updates.keys())
+    static_ids = set(st.static.stop_times.keys()) if st.static else set()
+    diag["vehiclesIndexed"] = len(v_ids)
+    diag["tripUpdatesIndexed"] = len(t_ids)
+    diag["staticTripCount"] = len(static_ids)
+    diag["vehicleTripIdsMatchingStatic"] = len(v_ids & static_ids)
+    diag["tripUpdateTripIdsMatchingStatic"] = len(t_ids & static_ids)
+    diag["sampleStaticTripIds"] = list(static_ids)[:8]
+    diag["rtOk"] = st.rt_ok
+    diag["rtAgeSec"] = round(time.time() - st.rt_updated_at) if st.rt_updated_at else None
+    return diag
+
+
 # ── Alert ────────────────────────────────────────────────
 @app.get("/alerts")
 def alerts(agencyId: int = DEFAULT_AGENCY_ID,
